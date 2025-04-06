@@ -1,0 +1,6 @@
+data/
+genomes/
+workdir/*/*/*.bam
+workdir/alignments_herpesviruses/
+workdir/alignment_herpesvirus/
+logs/
