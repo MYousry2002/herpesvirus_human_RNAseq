@@ -3,4 +3,6 @@ genomes/
 workdir/*/*/*.bam
 workdir/alignments_herpesviruses/
 workdir/alignment_herpesvirus/
+workdir/alignment_human/
+workdir/viral_only/
 logs/

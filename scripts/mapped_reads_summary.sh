@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define input/output paths
-ALIGN_DIR="../workdir/alignments_herpesviruses"
+ALIGN_DIR="../workdir/alignment_herpesvirus"
 METADATA="../data/GSE221091/metadata.csv"
 OUTPUT="../results/mapped_read_summary.csv"
 
