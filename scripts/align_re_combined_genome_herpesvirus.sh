@@ -3,8 +3,8 @@
 #$ -cwd
 #$ -o ../logs/star_align_combined_herpesvirus_$TASK_ID.out
 #$ -e ../logs/star_align_combined_herpesvirus_$TASK_ID.err
-#$ -pe smp 8
-#$ -l h_vmem=32G
+#$ -pe smp 12
+#$ -l h_vmem=64G
 #$ -l h_rt=12:00:00
 #$ -t 1-250
 

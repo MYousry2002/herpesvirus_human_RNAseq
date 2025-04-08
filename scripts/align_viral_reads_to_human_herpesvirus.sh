@@ -61,6 +61,7 @@ STAR --runThreadN $THREADS \
      --outSAMtype BAM SortedByCoordinate \
      --outSAMunmapped Within \
      --outFilterMultimapNmax 9999
+     
 
 human_log="$human_out/Log.final.out"
 human_bam="$human_out/Aligned.sortedByCoord.out.bam"

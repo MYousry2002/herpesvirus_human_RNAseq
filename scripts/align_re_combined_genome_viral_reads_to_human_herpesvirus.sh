@@ -3,7 +3,7 @@
 #$ -cwd
 #$ -o ../logs/rerun_combined_pipeline_$TASK_ID.out
 #$ -e ../logs/rerun_combined_pipeline_$TASK_ID.err
-#$ -pe smp 8
+#$ -pe smp 4
 #$ -l h_vmem=32G
 #$ -l h_rt=12:00:00
 #$ -t 1-250
@@ -18,52 +18,52 @@ HUMAN_ALIGN_DIR="../workdir/alignment_human"
 VIRAL_ONLY_DIR="../workdir/viral_only"
 VIRAL_INDEX_BASE="../genomes/herpesviruses/STAR_indices"
 HUMAN_INDEX="../genomes/human/STAR_index"
-THREADS=8
+THREADS=4
 
-# Get only combined genome dirs
-dir_list=($VIRAL_ALIGN_DIR/*__combined_herpes_viruses)
+# Get only combined genome alignments
+combined_dirs=($VIRAL_ALIGN_DIR/*__combined_herpes_viruses)
+TOTAL_TASKS=${#combined_dirs[@]}
 
-# Validate task index
-if [ -z "$SGE_TASK_ID" ] || [ "$SGE_TASK_ID" -gt "${#dir_list[@]}" ]; then
+# Validate task ID
+if [ -z "$SGE_TASK_ID" ] || [ "$SGE_TASK_ID" -gt "$TOTAL_TASKS" ]; then
     echo "Invalid SGE_TASK_ID: $SGE_TASK_ID"
     exit 1
 fi
 
-# Sample/virus info
-viral_dir="${dir_list[$((SGE_TASK_ID-1))]}"
+# Define this task's sample
+viral_dir="${combined_dirs[$((SGE_TASK_ID-1))]}"
 base=$(basename "$viral_dir")
 sample=${base%%__*}
 virus=${base##*__}
 
-# Define paths
 bam="$viral_dir/Aligned.sortedByCoord.out.bam"
 viral_log="$viral_dir/Log.final.out"
 human_out="$HUMAN_ALIGN_DIR/$base"
 viral_only_out="$VIRAL_ONLY_DIR/$base"
 realigned_out="$viral_only_out/realigned"
 
-# Remove previous outputs
+# Clean any previous output
 rm -rf "$human_out" "$viral_only_out"
 mkdir -p "$human_out" "$realigned_out"
 
-# STAR log checks
+# Check files exist
 if [[ ! -f "$bam" || ! -f "$viral_log" ]]; then
     echo "Missing BAM or STAR log for $base"
     exit 1
 fi
 
-# Viral alignment stats
+# --- Viral STAR stats ---
 unique_viral=$(grep "Uniquely mapped reads number" "$viral_log" | awk -F '|' '{gsub(/ /,"",$2); print $2}')
 multi_viral=$(grep "Number of reads mapped to multiple loci" "$viral_log" | awk -F '|' '{gsub(/ /,"",$2); print $2}')
 total_viral=$((unique_viral + multi_viral))
 
-# Extract mapped viral reads
+# --- Extract mapped reads from viral BAM ---
 samtools view -b -F 4 "$bam" > "$human_out/mapped_viral.bam"
 samtools sort -n "$human_out/mapped_viral.bam" -o "$human_out/mapped_viral.query.bam"
 samtools fastq -1 "$human_out/mapped_viral_R1.fastq" -2 "$human_out/mapped_viral_R2.fastq" -0 /dev/null -s /dev/null -n "$human_out/mapped_viral.query.bam"
 
-# Align to human genome
-STAR --runThreadN $THREADS \
+# --- Align to human genome ---
+STAR --runThreadN "$THREADS" \
      --genomeDir "$HUMAN_INDEX" \
      --readFilesIn "$human_out/mapped_viral_R1.fastq" "$human_out/mapped_viral_R2.fastq" \
      --outFileNamePrefix "$human_out/" \
@@ -71,24 +71,24 @@ STAR --runThreadN $THREADS \
      --outSAMunmapped Within \
      --outFilterMultimapNmax 9999
 
-# Human log validation
 human_log="$human_out/Log.final.out"
 human_bam="$human_out/Aligned.sortedByCoord.out.bam"
 
+# Validate human alignment
 if [[ ! -f "$human_log" || ! -f "$human_bam" ]]; then
     echo "Human alignment failed for $base"
     exit 1
 fi
 
-# Human stats
+# --- Human STAR stats ---
 unique_human=$(grep "Uniquely mapped reads number" "$human_log" | awk -F '|' '{gsub(/ /,"",$2); print $2}')
 multi_human=$(grep "Number of reads mapped to multiple loci" "$human_log" | awk -F '|' '{gsub(/ /,"",$2); print $2}')
 total_human=$((unique_human + multi_human))
 
-# Get human-mapped read names
+# --- Extract human-mapped read names ---
 samtools view -F 4 "$human_bam" | cut -f1 | sort -u | sed 's/^/@/' > "$viral_only_out/human_mapped_readnames.txt"
 
-# Filter reads from viral FASTQ
+# --- Filter unmapped reads from FASTQs ---
 filter_fastq() {
   input_fastq="$1"
   output_fastq="$2"
@@ -113,17 +113,19 @@ filter_fastq() {
 filter_fastq "$human_out/mapped_viral_R1.fastq" "$viral_only_out/viral_only_R1.fastq" "$viral_only_out/human_mapped_readnames.txt"
 filter_fastq "$human_out/mapped_viral_R2.fastq" "$viral_only_out/viral_only_R2.fastq" "$viral_only_out/human_mapped_readnames.txt"
 
-# Realign viral-only reads to combined genome
-STAR --runThreadN $THREADS \
-     --genomeDir "${VIRAL_INDEX_BASE}/combined_herpes_viruses" \
+# --- Re-align viral-only reads to combined genome ---
+STAR --runThreadN "$THREADS" \
+     --genomeDir "$VIRAL_INDEX_BASE/combined_herpes_viruses" \
      --readFilesIn "$viral_only_out/viral_only_R1.fastq" "$viral_only_out/viral_only_R2.fastq" \
      --outFileNamePrefix "$realigned_out/" \
      --outSAMtype BAM SortedByCoordinate \
      --outSAMunmapped Within \
      --outFilterMismatchNoverReadLmax 0.1 \
-     --outFilterMismatchNmax 20
+     --outFilterMismatchNmax 20 \
+     --outFilterMultimapNmax 9999
+     
 
-# Parse realigned log
+# --- Re-alignment stats ---
 realigned_log="$realigned_out/Log.final.out"
 if [[ -f "$realigned_log" ]]; then
     viral_only_unique=$(grep "Uniquely mapped reads number" "$realigned_log" | awk -F '|' '{gsub(/ /,"",$2); print $2}')
@@ -135,7 +137,7 @@ else
     viral_only_total=0
 fi
 
-# Save summary
+# --- Save summary stats ---
 cat > "$viral_only_out/stats.txt" <<EOL
 Sample-Virus: $base
 
@@ -154,4 +156,4 @@ Viral-only multi-mapped reads:    $viral_only_multi
 Viral-only total reads:           $viral_only_total
 EOL
 
-echo "Completed: $base"
+echo "✅ Completed: $base"
