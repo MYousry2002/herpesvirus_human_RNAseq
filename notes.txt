@@ -1,0 +1,5 @@
+use correlatation distance not euc distance
+
+tasks:
+
+group by cell type. 
