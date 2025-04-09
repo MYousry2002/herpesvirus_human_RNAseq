@@ -51,7 +51,7 @@ sns.heatmap(df, cmap="viridis", cbar_kws={"label": "Read Count"}, xticklabels=1)
 tick_positions = np.arange(0, NUM_BINS, 1)  # every 1kb bin
 tick_labels = [f"{i}kb" if i % 10 == 0 else "" for i in tick_positions]
 
-plt.xticks(tick_positions + 0.5, tick_labels, rotation=90, fontsize=8)
+plt.xticks(tick_positions + 0.5, tick_labels, rotation=45, fontsize=8)
 
 plt.title("HSV1_KOS Read Distribution Across Genome (1kb bins)")
 plt.xlabel("Genome Position")
