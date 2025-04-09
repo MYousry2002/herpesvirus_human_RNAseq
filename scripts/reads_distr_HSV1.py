@@ -36,17 +36,25 @@ for bam_path in VIRAL_ONLY_DIR.glob("*__HSV1_KOS/realigned/Aligned.sortedByCoord
     binned_counts[sample_name] = bin_counts
 
 # Convert to DataFrame
-bin_labels = [f"{i*BIN_SIZE}-{(i+1)*BIN_SIZE-1}" for i in range(NUM_BINS)]
+bin_starts = np.arange(0, NUM_BINS * BIN_SIZE, BIN_SIZE)
+bin_labels = [f"{start}-{start + BIN_SIZE - 1}" for start in bin_starts]
 df = pd.DataFrame.from_dict(binned_counts, orient="index", columns=bin_labels)
 
-# Save
+# Save to CSV
 df.to_csv("../results/HSV1_KOS_read_distribution_1kb_bins.csv")
 
 # Plot
 plt.figure(figsize=(15, max(6, len(df) // 4)))
-sns.heatmap(df, cmap="viridis", cbar_kws={"label": "Read Count"}, xticklabels=50)
+sns.heatmap(df, cmap="viridis", cbar_kws={"label": "Read Count"}, xticklabels=1)
+
+# Add ticks every 1kb bin, but label only every 10kb
+tick_positions = np.arange(0, NUM_BINS, 1)  # every 1kb bin
+tick_labels = [f"{i}kb" if i % 10 == 0 else "" for i in tick_positions]
+
+plt.xticks(tick_positions + 0.5, tick_labels, rotation=90, fontsize=8)
+
 plt.title("HSV1_KOS Read Distribution Across Genome (1kb bins)")
-plt.xlabel("Genome Position (1kb bins)")
+plt.xlabel("Genome Position")
 plt.ylabel("Sample")
 plt.tight_layout()
 plt.savefig("../results/HSV1_KOS_read_distribution_heatmap.png", dpi=300)
