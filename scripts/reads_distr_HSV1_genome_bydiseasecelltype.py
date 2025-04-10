@@ -15,7 +15,7 @@ NUM_BINS = (HSV1_GENOME_LENGTH + BIN_SIZE - 1) // BIN_SIZE
 VIRAL_ONLY_DIR = Path("../workdir/viral_only")
 METADATA_PATH = "../data/GSE221091/metadata.csv"
 OUT_CSV = "../results/HSV1_KOS_read_distribution_1kb_bins.csv"
-OUT_PNG = "../results/HSV1_KOS_read_distribution_heatmap_groupedby_disease.png"
+OUT_PNG = "../results/HSV1_KOS_read_distribution_heatmap_groupedby_disease_celltype.png"
 
 # Load metadata
 meta = pd.read_csv(METADATA_PATH)
@@ -56,12 +56,11 @@ df = pd.DataFrame(
 df.sort_index(inplace=True)
 df.to_csv(OUT_CSV)
 
-
 # Plotting
 fig, ax = plt.subplots(figsize=(15, max(6, len(df) // 4)))
 sns.set(style="white")
 
-# Heatmap
+# Create the heatmap
 heatmap = sns.heatmap(
     df,
     cmap="viridis",
@@ -70,37 +69,53 @@ heatmap = sns.heatmap(
     ax=ax
 )
 
-# Move colorbar to far right
+# Move colorbar to the far right
 cbar = heatmap.collections[0].colorbar
+cbar_ax = cbar.ax
 fig.subplots_adjust(left=0.1, right=0.86, top=0.93, bottom=0.06)
-cbar.ax.set_position([0.88, 0.1, 0.015, 0.8])
+cbar_ax.set_position([0.88, 0.1, 0.015, 0.8])  # [left, bottom, width, height]
 
-# X-axis ticks
+# X-axis ticks every 1kb, label every 10kb
 tick_positions = np.arange(0, NUM_BINS, 1)
 tick_labels = [f"{i}kb" if i % 10 == 0 else "" for i in tick_positions]
 ax.set_xticks(tick_positions + 0.5)
 ax.set_xticklabels(tick_labels, rotation=90, fontsize=8)
 
-# Y-axis labels (Sample only)
+# Y-axis: sample names
 ax.set_yticks(np.arange(len(df)) + 0.5)
 ax.set_yticklabels(df.index.get_level_values("Sample"), fontsize=6)
 
-# Horizontal lines to separate diseases
+# Draw horizontal lines to separate disease and cell types
 disease_labels = df.index.get_level_values("Disease")
-boundaries = np.where(disease_labels[:-1] != disease_labels[1:])[0] + 1
-for b in boundaries:
-    ax.axhline(b, color="white", linestyle="--", linewidth=1.2)
+celltype_labels = df.index.get_level_values("CellType")
 
-# Add disease labels to right of each row
-for i, (disease, celltype, sample) in enumerate(df.index):
+# Find boundaries where disease changes
+disease_boundaries = np.where(disease_labels[:-1] != disease_labels[1:])[0] + 1
+
+# Find boundaries where cell type changes (within the same disease group)
+celltype_boundaries = [
+    i + 1 for i in range(len(celltype_labels) - 1)
+    if celltype_labels[i] != celltype_labels[i + 1] and disease_labels[i] == disease_labels[i + 1]
+]
+
+# Draw main (prominent) horizontal lines for disease separation
+for b in disease_boundaries:
+    ax.axhline(b, color="white", linestyle="-", linewidth=2.2)
+
+# Draw lighter horizontal lines for cell type separation
+for b in celltype_boundaries:
+    ax.axhline(b, color="white", linestyle="--", linewidth=1)
+
+# Add group annotations (disease | cell_type)
+for i, (disease, celltype, _) in enumerate(df.index):
     ax.text(
-        len(df.columns) + 1.2, i + 0.5,
-        disease,
+        len(df.columns) + 1.5, i + 0.5,
+        f"{disease} | {celltype}",
         va="center", fontsize=6, color="black"
     )
 
-# Titles
-ax.set_title("HSV1_KOS Read Distribution (1kb bins)\nGrouped by Disease", pad=8)
+# Final touches
+ax.set_title("HSV1_KOS Read Distribution (1kb bins)\nGrouped by Disease and Cell Type", pad=8)
 ax.set_xlabel("Genome Position", labelpad=8)
 ax.set_ylabel("Sample", labelpad=8)
 
